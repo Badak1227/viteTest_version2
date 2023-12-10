@@ -20,12 +20,12 @@ typedef struct line {
 }line;
 
 typedef struct chunk {
-    //청크 고유 path
-    char* path;
-
     //이전 청크와 다음 청크
     struct chunk* prev;
     struct chunk* next;
+
+    //청크 고유 path
+    char* path;
 
     //라인 리스트와 리스트 크기
     line* line_list;
@@ -47,42 +47,97 @@ typedef struct cursor {
     int line;
 }cursor;
 
+typedef struct sr {
+    struct sr* prev;
+    cursor* search_result;
+    struct sr* next;
+}sr;
 
-char* getUniqueP();
+void check_cursor(cd* startCd, cursor* curCur, cd* endCd);
 
-void readf(char* path, chunk* curChunk, int* lines);
+cursor* get_cursor(chunk* chunk_list);
 
-void writef(char* path, chunk* curChunk);
-
-void chunkOn(cursor* curCur);
-
-void chunkOff(cursor* curCur);
-
-void free_line(line* line_list);
-
-void free_chunk(chunk* chunk_list);
+char* getUniquePath();
 
 line* getLine();
 
-void addWord(char input, cd* cur, chunk* curChunk, line* curRow);
-
-void bsWord(cd* cur, chunk* curChunk, line* curRow);
-
 chunk* getChunk();
 
-void divChunk(chunk* curChunk, line* curRow);
+void chunkOn(chunk* curChunk);
 
-void mergeChunk(chunk* curChunk, line* curRow);
+void chunkOff(chunk* curChunk);
 
-void search();
+void free_line(line** line_list);
+
+void free_chunk(chunk** chunk_list);
 
 
+void divChunk(cursor* curCur);
 
-char* getUniqueP() {
+void mergeChunk(cursor* curCur);
+
+void addWord(char input, cursor* curCur, int* lines);
+
+void bsWord(cursor* curCur, int* lines);
+
+void up(cursor* curCur);
+
+void down(cursor* curCur);
+
+void left(cursor* curCur);
+
+void right(cursor* curCur);
+
+void home(cursor* curCur);
+
+void end(cursor* curCur);
+
+void pgUp(cd* startCd, cursor* curCur);
+
+void pgDown(cd* startCd, cursor* curCur, cd* endCd, int* lines);
+
+sr* search(char* target, chunk* chunk_list, int* searchCount);
+
+void check_cursor(cd* startCd, cursor* curCur, cd* endCd) {
+    if (curCur->x < startCd->x) {
+
+        startCd->x = curCur->x;
+        endCd->x = startCd->x + 99;
+    }
+    else if (curCur->x > endCd->x - 2) {
+        endCd->x = curCur->x + 2;
+        startCd->x = endCd->x - 99;
+    }
+
+    if (curCur->y < startCd->y) {
+        startCd->y = curCur->y;
+        endCd->y = startCd->y + 22;
+    }
+    else if (curCur->y > endCd->y) {
+        endCd->y = curCur->y;
+        startCd->y = endCd->y - 22;
+    }
+
+}
+
+cursor* get_cursor(chunk* chunk_list) {
+    cursor* tmp = (cursor*)malloc(sizeof(cursor));
+
+    tmp->x = 0;
+    tmp->y = 0;
+
+    tmp->curChunk = chunk_list;
+
+    tmp->line = 0;
+
+    return tmp;
+}
+
+char* getUniquePath() {
     char buffer[80] = "Chunk";
     int idx = 5;
-    static char chunkNum = 1;
-    char num = chunkNum;
+    static int chunkNum = 1;
+    int num = chunkNum;
 
     chunkNum++;
 
@@ -91,6 +146,7 @@ char* getUniqueP() {
 
         num /= 10;
     }
+    buffer[idx] = '\0';
 
     char* path = (char*)malloc(strlen(buffer) + 1);
     strcpy(path, buffer);
@@ -116,7 +172,7 @@ chunk* getChunk() {
     chunk* tmp = (chunk*)malloc(sizeof(chunk));
     FILE* fp;
 
-    tmp->path = getUniqueP();
+    tmp->path = getUniquePath();
 
     fp = fopen(tmp->path, "wt");;
     fclose(fp);
@@ -128,76 +184,28 @@ chunk* getChunk() {
 
     tmp->listSize = 0;
 
+    tmp->state = 0;
+
     return tmp;
 }
 
-void readf(char* path,chunk* curChunk, int* lines) {
-    FILE* fp = fopen(path, "rt");
+void chunkSave(chunk* curChunk) {
+    line* curLine = curChunk->line_list;
 
-    chunk* tmpChunk = curChunk;
-    char ch = fgetc(fp);
-    int c_lines = 1;
+    FILE* fp = fopen(curChunk->path, "wt");
 
-    FILE* c_fp = fopen(tmpChunk->path, "wt");
-
-    while (ch != EOF) {
-        fputc(ch, c_fp);
-
-        if (ch == '\n') {
-            *lines++;
-            c_lines++;
+    while (curLine != NULL) {
+        for (int i = 0; i < curLine->textSize; i++) {
+            fputc(curLine->text[i], fp);
         }
 
-        if (c_lines > 40) {
-            fclose(c_fp);
-
-            tmpChunk->next = getChunk();
-            tmpChunk->next->prev = tmpChunk;
-
-            tmpChunk = tmpChunk->next;
-
-            c_fp = fopen(tmpChunk->path, "wt");
-
-            c_lines = 1;
-        }
-
-        ch = fgetc(fp);
+        curLine = curLine->down;
     }
-    
-    fclose(fp);
-    fclose(c_fp);
-}
 
-void writef(char* path, chunk* curChunk) {
-    chunk* tmpChunk = curChunk;
-    char buffer[100] = {0};
-
-    FILE* fp = fopen(path, "wt");
-
-    while (tmpChunk != NULL) {
-        FILE* c_fp = fopen(tmpChunk->path, "rt");
-
-        int readChars = fread(buffer, 1, 100, c_fp);
-
-        while (readChars > 0) {
-            printf("%s\n", tmpChunk->path);
-
-            fwrite(buffer, 1, 100, fp);
-
-            readChars = fread(buffer, 1, 100, c_fp);
-        }
-
-        fclose(c_fp);
-
-        tmpChunk = tmpChunk->next;
-    }
-    
     fclose(fp);
 }
 
-void chunkOn(cursor* curCur) {
-    chunk* curChunk = curCur->curChunk;
-
+void chunkOn(chunk* curChunk) {
     //현재 청크 state가 비활성화 되있을 시 line_list 생성
     if (curChunk->state == 0) {
         FILE* fp = fopen(curChunk->path, "rt");
@@ -210,6 +218,16 @@ void chunkOn(cursor* curCur) {
         tmpLine = curChunk->line_list;
 
         while (input != EOF) {
+            if (tmpLine->textSize > 0) {
+                if (tmpLine->text[tmpLine->textSize - 1] == '\n') {
+                    tmpLine->down = getLine();
+
+                    tmpLine->down->up = tmpLine;
+                    tmpLine = tmpLine->down;
+
+                    curChunk->listSize++;
+                }
+            }
 
             if (tmpLine->textSize == tmpLine->arrSize) {
                 tmpLine->text = (char*)realloc(tmpLine->text, sizeof(char) * (tmpLine->arrSize + 100));
@@ -220,185 +238,129 @@ void chunkOn(cursor* curCur) {
             tmpLine->text[tmpLine->textSize] = input;
             tmpLine->textSize++;
 
-            if (input == '\n') {
-                tmpLine->down = getLine();
-
-                tmpLine->down->up = tmpLine;
-                tmpLine = tmpLine->down;
-
-                curChunk->listSize++;
-
-            }
+            input = fgetc(fp);
         }
+
+        fclose(fp);
     }
 
     curChunk->state = 1;
 }
 
-void chunkOff(cursor* curCur) {
-    chunk* curChunk = curCur->curChunk;
+void chunkOff(chunk* curChunk) {
+    curChunk->listSize = 0;
+
+    //현재 청크 state가 활성화 되있을 시 비활성화
+    if (curChunk->state == 1) {
+        chunkSave(curChunk);
+
+        free_line(&(curChunk->line_list));
+    }
 
     curChunk->state = 0;
-
-    //현재 청크 state가 비활성화로 전환 되었을 시 line_list 생성
-    if (curChunk->state == 0) {
-        FILE* fp = fopen(curChunk->path, "wt");
-
-        line* tmpLine = curChunk->line_list;
-
-        while (tmpLine != NULL) {
-            for (int i = 0; i < tmpLine->textSize; i++) {
-                fputc(tmpLine->text[i], fp);
-            }
-
-            tmpLine = tmpLine->down;
-        }
-
-        curChunk->listSize = 0;
-
-        free_line(curChunk->line_list);
-
-        fclose(fp);
-    }
 }
 
-void free_line(line* line_list) {
+void free_line(line** line_list) {
+    line* curLine = *line_list;
     line* tmp;
 
-    while (line_list != NULL) {
-        tmp = line_list;
+    while (curLine != NULL) {
+        tmp = curLine;
 
-        line_list = line_list->down;
+        curLine = curLine->down;
 
         free(tmp);
     }
+
+    *line_list = NULL;
 }
 
-void free_chunk(chunk* chunk_list) {
+void free_chunk(chunk** chunk_list) {
+    chunk* curChunk = *chunk_list;
     chunk* tmp;
 
-    while (chunk_list != NULL) {
-        tmp = chunk_list;
+    while (curChunk != NULL) {
+        
+        tmp = curChunk;
 
-        free_line(chunk_list->line_list);
+        free_line(&(curChunk->line_list));
 
-        remove(chunk_list->path);
-
-        chunk_list = chunk_list->next;
+        remove(tmp->path);
+        fprintf(stdout, "\r                                              \rREMOVE CHUNK_FILE WAIT..");
+        curChunk = curChunk->next;
 
         free(tmp);
     }
+
+    *chunk_list = NULL;
+
+    fprintf(stdout, "\r                                              \rEND");
 }
 
-void addWord(char input, cd* cur, chunk* curChunk, line* curRow) {
-    if (input == '\n') {
-        line* tmp = getLine();
+void divChunk(cursor* curCur) {
+    chunk* curChunk = curCur->curChunk;
+    chunk* newChunk = getChunk();
+    line* next_list = curChunk->line_list;
 
-        curChunk->listSize++;
+    int sepLine = curChunk->listSize / 2;
 
-        while(curRow->textSize - cur->x < tmp->arrSize){
-            tmp->text = (char*)realloc(tmp->text, sizeof(char) * (tmp->arrSize + 100));
+    newChunk->state = 1;
 
-            tmp->arrSize += 100;
-        }
+    //현재 커서가 참조해야할 청크 판단
+    int side = curCur->line < sepLine ? 0 : 1;
 
-        for (int i = cur->x; i < curRow->textSize; i++) {
-            tmp->text[i - cur->x] = curRow->text[i];
-        }
+    for (int i = 1; i < sepLine + 1; i++) {
+        next_list = next_list->down;
+    }
 
-        curRow->text[cur->x] = input;
+    //청크 연결
+    newChunk->prev = curChunk;
+    newChunk->next = curChunk->next;
+    curChunk->next = newChunk;
+    if (newChunk->next != NULL) newChunk->next->prev = newChunk;
 
-        curRow->textSize = cur->x + 1;
+    //라인리스트 청크에 할당
+    newChunk->line_list = next_list;
 
-        while (curRow->textSize < curRow->arrSize) {
-            if (curRow->arrSize == 100) break;
+    //청크간 라인리스트 연결 삭제
+    newChunk->line_list->up->down = NULL;
+    newChunk->line_list->up = NULL;
 
-            curRow->text = (char*)realloc(curRow->text, sizeof(char) * (curRow->arrSize - 100));
-            
-            curRow->arrSize -= 100;
-        }
+    newChunk->listSize = curChunk->listSize - sepLine;
+    curChunk->listSize = sepLine;
 
-        curRow->down->up = tmp;
-        tmp->down = curRow->down;
-
-        curRow->down = tmp;
-        tmp->up = curRow;
-        
-        curRow = tmp;
-
-        curChunk->listSize++;
-
-        cur->x = 0;
-        cur->y++;
+    if (side == 0) {
+        if (newChunk->next != NULL) chunkOff(newChunk->next);
     }
     else {
-        char tmp;
+        if (curChunk->prev != NULL) chunkOff(curChunk->prev);
 
-        curRow->textSize++;
-        
-        if (curRow->arrSize == curRow->textSize) {
-            curRow->text = (char*)realloc(curRow->text, sizeof(char) * (curRow->arrSize + 100));
-
-            curRow->arrSize += + 100;
-        }
-
-        for (int i = curRow->textSize - 1; i >= cur->x; i--) {
-            curRow->text[i] = curRow->text[i - 1];
-        }
-        curRow->text[cur->x] = input;
-
-        cur->x++;
-    }
-
-    if (curChunk->listSize > 46) {
-        //divChunk();
+        curCur->curChunk = newChunk;
+        curCur->line = curCur->line - sepLine;
     }
 }
 
-void bsWord(cd* cur, chunk* curChunk, line* curRow) {
+void mergeChunk(cursor* curCur) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curChunk->line_list;
 
-}
-
-
-
-
-
-void divChunk(chunk* curChunk, line* curRow) {
-    int side = 1;
-
-    line* next_list = curChunk->line_list;
-    
-    chunk* newChunk = getChunk();
-
-    newChunk->path = getUniqueP();
-
-
-    for (int i = 0; i <= 23; i++) {
-
-        if (next_list == curRow) side = 0;
-        
-        getChunk();
-    }
-}
-
-void mergeChunk(chunk* curChunk, line* curRow) {
+    //다음 청크가 존재하는 경우
     if (curChunk->next != NULL) {
         chunk* targetChunk = curChunk->next;
 
         line* connect1 = curChunk->line_list;
-
         line* connect2 = targetChunk->line_list;
 
-        //두 청크간 line_list 연결
         while (connect1->down != NULL) {
             connect1 = connect1->down;
         }
 
-        connect1->down = connect2->down;
-        connect2->down->up = connect1->up;
-        
+        //두 청크간 line_list 연결
+        connect1->down = connect2;
+        connect2->up = connect1;
+
         curChunk->listSize += targetChunk->listSize;
-        
+
         //청크 재연결
         curChunk->next = targetChunk->next;
         if (targetChunk->next != NULL) {
@@ -410,21 +372,302 @@ void mergeChunk(chunk* curChunk, line* curRow) {
         targetChunk->next = NULL;
         targetChunk->line_list = NULL;
 
-        if (targetChunk->state > 0) {
-            fclose(targetChunk->path);
-        }
-
         remove(targetChunk->path);
 
         free(targetChunk->path);
         free(targetChunk);
 
-        //현 청크 사이즈 오버시 divChunk 실행
-        if (curChunk->listSize > 46) divChunk(curChunk, curRow);
+        //다음 청크 활성화
+        if (curChunk->next != NULL) chunkOn(curChunk->next);
     }
 
+    //현 청크 사이즈 오버시 divChunk 실행
+    if (curChunk->listSize > 46) divChunk(curCur);
 }
 
-void search(cd start, cd cur, cd end, char* target, chunk* curChunk) {
+void addWord(char input, cursor* curCur, int* lines) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curChunk->line_list;
+    int curCol = curCur->x;
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+    
+    //라인 배열 메모리 조절
+    if (curLine->textSize == curLine->arrSize) {
+        curLine->arrSize += +100;
+
+        curLine->text = (char*)realloc(curLine->text, curLine->arrSize);
+    }
+
+    //배열 한칸씩 밀기
+    for (int i = curLine->textSize; i >= curCol; i--) {
+        curLine->text[i] = curLine->text[i - 1];
+    }
+    curLine->text[curCol] = input;
+    curLine->textSize++;
+
+    curCur->x++;
+
+    if (input == '\n') {
+        line* tmpLine = getLine();
+        (*lines)++;
+
+        tmpLine->down = curLine->down;
+        curLine->down = tmpLine;
+
+        tmpLine->up = curLine;
+        if (tmpLine->down != NULL) tmpLine->down->up = tmpLine;
+
+        
+        tmpLine->textSize = curLine->textSize - curCur->x;
+        tmpLine->arrSize = (((tmpLine->textSize - 1) / 100) + 1) * 100;
+
+        tmpLine->text = (char*)realloc(tmpLine->text, tmpLine->arrSize);
+
+        for (int i = curCur->x, j = 0; i < curLine->textSize; i++, j++) {
+            tmpLine->text[j] = curLine->text[i];
+        }
+
+        curLine->textSize = curCur->x;
+        curLine->arrSize = (((curLine->textSize - 1) / 100) + 1) * 100;
+        
+        curLine->text = (char*)realloc(curLine->text, curLine->arrSize);
+
+        curChunk->listSize++;
+
+        curCur->x = 0;
+        curCur->y++;
+
+        curCur->line++;
+    }
+
+    if (curChunk->listSize > 46) {
+        divChunk(curCur);
+    }
+}
+
+void bsWord(cursor* curCur, int* lines) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curChunk->line_list;
+    int curCol = curCur->x;
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+
+    //라인의 처음에서 백스페이스 시 동작
+    if (curCol == 0) {
+        //청크의 가장 첫라인이고 이전 청크가 존재할 경우
+        if (curLine->up == NULL && curChunk->prev != NULL) {
+            chunk* prevChunk = curChunk->prev;
+            line* prevLine = prevChunk->line_list;
+            curCol = prevLine->textSize - 1;
+
+            curCur->line = prevChunk->listSize - 1;
+            (*lines)--;
+
+            while (prevLine->down != NULL) {
+                prevLine = prevLine->down;
+            }
+
+            //청크간 라인리스트 연결
+            prevLine->down = curLine->down;
+            if (prevLine->down != NULL) prevLine->down->up = prevLine;
+
+            prevLine->textSize = curLine->textSize + curCol;
+            prevLine->arrSize = (((prevLine->textSize - 1) / 100) + 1) * 100;
+            prevLine->text = (char*)realloc(prevLine->text, prevLine->arrSize);
+            prevChunk->listSize += curChunk->listSize - 1;
+
+            for (int i = 0, j = curCol; i < curLine->textSize; i++, j++) {
+                prevLine->text[j] = curLine->text[i];
+            }
+            
+            prevChunk->next = curChunk->next;
+            if (prevChunk->next != NULL) prevChunk->next->prev = prevChunk;
+
+            
+            curCur->curChunk = prevChunk;
+            curCur->x = curCol;
+
+            if (curCur->x > prevLine->textSize) curCur->x = prevLine->textSize;
+            if (prevLine->text[curCur->x] == '\n') curCur->x--;
+
+            curCur->y--;
+
+            if (prevChunk->prev != NULL) chunkOn(prevChunk->prev);
+
+            free(curLine);
+
+            remove(curChunk->path);
+            free(curChunk->path);
+            free(curChunk);
+
+            if (curCur->curChunk->listSize > 46) divChunk(curCur);
+        }
+        //청크의 첫 라인이 아닐 경우
+        else if (curLine->up != NULL) {
+            line* prevLine = curLine->up;
+            curCol = prevLine->textSize - 1;
+            (*lines)--;
+
+            prevLine->down = curLine->down;
+            if (prevLine->down != NULL) prevLine->down->up = prevLine;
+
+            prevLine->textSize = curLine->textSize + prevLine->textSize - 1;
+            prevLine->arrSize = (((prevLine->textSize - 1) / 100) + 1) * 100;
+            prevLine->text = (char*)realloc(prevLine->text, prevLine->arrSize);
+
+            for (int i = 0, j = curCol; i < curLine->textSize; i++, j++) {
+                prevLine->text[j] = curLine->text[i];
+            }
+
+            curChunk->listSize--;
+            curCur->x = curCol;
+            curCur->y--;
+            curCur->line--;
+
+            free(curLine);
+
+            if (curChunk->listSize < 23) mergeChunk(curCur);
+        }
+    }
+    else {
+        for (int i = curCol; i < curLine->textSize; i++) {
+            curLine->text[i - 1] = curLine->text[i];
+        }
+
+        curLine->textSize--;
+        curCur->x--;
+
+        if (curLine->textSize % 100 == 0 && curLine->textSize > 0) {
+            curLine->arrSize -= 100;
+            curLine->text = (char*)realloc(curLine->text, curLine->arrSize);
+        }
+    }
+}
+
+void up(cursor* curCur) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curCur->curChunk->line_list;
+
+    //현재 청크의 첫라인이 아닌 경우
+    if (curCur->line > 0) {
+        curCur->y--;
+        curCur->line--;
+    }
+    //현재 청크의 첫라인이며 이전 청크가 존재하는 경우
+    else if (curLine->up == NULL && curCur->curChunk->prev != NULL) {
+        curCur->curChunk = curCur->curChunk->prev;
+        curCur->y--;
+        curCur->line = curCur->curChunk->listSize - 1;
+
+        curLine = curChunk->prev->line_list;
+
+        if (curCur->curChunk->prev != NULL) chunkOn(curCur->curChunk->prev);
+        if (curChunk->next != NULL) chunkOff(curChunk->next);
+    }
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+
+    if(curCur->x > curLine->textSize) curCur->x = curLine->textSize;
+
+    if (curLine->text[curCur->x - 1] == '\n') curCur->x--;
+}
+
+void down(cursor* curCur) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curChunk->line_list;
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+
+    //아래 라인이 존재하는 경우
+    if (curLine->down != NULL) {
+        curCur->y++;
+        curCur->line++;
+
+        curLine = curLine->down;
+    }
+    //아래 라인이 존재하지 않으며 다음 청크가 존재하는 경우
+    else if (curLine->down == NULL && curChunk->next != NULL) {
+        curCur->curChunk = curChunk->next;
+        curCur->y++;
+        curCur->line = 0;
+        
+        curLine = curCur->curChunk->line_list;
+
+        if (curChunk->prev != NULL) chunkOff(curChunk->prev);
+        if (curCur->curChunk->next != NULL) chunkOn(curCur->curChunk->next);
+    }
+
+    if (curCur->x > curLine->textSize) curCur->x = curLine->textSize;
+
+    if (curLine->text[curCur->x - 1] == '\n') curCur->x--;
+}
+
+void left(cursor* curCur) {
+    if (curCur->x > 0) curCur->x--;
+}
+
+void right(cursor* curCur) {
+    line* curLine = curCur->curChunk->line_list;
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+
+    if (curCur->x < curLine->textSize && curLine->text[curCur->x] != '\n') curCur->x++;
+}
+
+void home(cursor* curCur) {
+    curCur->x = 0;
+}
+
+void end(cursor* curCur) {
+    chunk* curChunk = curCur->curChunk;
+    line* curLine = curChunk->line_list;
+
+    for (int i = 0; i < curCur->line; i++) {
+        curLine = curLine->down;
+    }
+
+    curCur->x = curLine->textSize;
+
+    if (curLine->text[curCur->x - 1] == '\n') curCur->x--;
+}
+
+void pgUp(cd* startCd, cursor* curCur) {
+    if (startCd->y > 0) {
+        int gap = (curCur->y - startCd->y) + 23;
+
+        for (int i = 0; i < gap; i++) {
+            up(curCur);
+        }
+
+        curCur->x = 0;
+    }
+}
+
+void pgDown(cd* startCd, cursor* curCur, cd* endCd, int* lines) {
+    if (endCd->y + 1 < *lines) {
+        int gap = (endCd->y - curCur->y) + 1;
+
+        for (int i = 0; i < gap; i++) {
+            down(curCur);
+        }
+
+        curCur->x = 0;
+        startCd->y = curCur->y;
+        endCd->y = startCd->y + 22;
+    }
+}
+
+sr* search(char* target, chunk* chunk_list, int* searchCount) {
 
 }

@@ -11,26 +11,29 @@ typedef struct coordinate {
 }cd;
 
 typedef struct line {
+    //윗라인과 아래라인
     struct line* up;
     struct line* down;
 
+    //문자열 저장 배열, 배열 크기, 텍스트 길이
     char* text;
-
     int arrSize;
     int textSize;
 }line;
 
 typedef struct chunk {
-    FILE* fp;
-    char* path;
-
+    //이전 청크와 다음 청크
     struct chunk* prev;
     struct chunk* next;
 
-    line* line_list;
+    //청크 고유 path
+    char* path;
 
+    //라인 리스트와 리스트 크기
+    line* line_list;
     int listSize;
 
+    //청크 활성화 상태
     int state;
 }chunk;
 
@@ -46,33 +49,47 @@ typedef struct cursor {
     int line;
 }cursor;
 
-char* getUniqueP();
+void check_cursor(cd* startCd, cursor* curCur, cd* endCd);
 
-void readf(char* path, chunk* curChunk, int* lines);
+cursor* get_cursor(chunk* chunk_list);
 
-void writef(char* path, chunk* curChunk);
-
-void chunkOn(cursor* curCur);
-
-void chunkOff(cursor* curCur);
-
-void free_line(line* line_list);
-
-void free_chunk(chunk* chunk_list);
+char* getUniquePath();
 
 line* getLine();
 
-void addWord(char input, cd* cur, chunk* curChunk, line* curRow);
-
-void bsWord(cd* cur, chunk* curChunk, line* curRow);
-
 chunk* getChunk();
 
-void divChunk(chunk* curChunk, line* curRow);
+void chunkOn(chunk* curChunk);
 
-void mergeChunk(chunk* curChunk, line* curRow);
+void chunkOff(chunk* curChunk);
 
-void search();
+void free_line(line** line_list);
 
+void free_chunk(chunk** chunk_list);
+
+
+void divChunk(cursor* curCur);
+
+void mergeChunk(cursor* curCur);
+
+void addWord(char input, cursor* curCur, int* lines);
+
+void bsWord(cursor* curCur, int* lines);
+
+void up(cursor* curCur);
+
+void down(cursor* curCur);
+
+void left(cursor* curCur);
+
+void right(cursor* curCur);
+
+void home(cursor* curCur);
+
+void end(cursor* curCur);
+
+void pgUp(cd* startCd, cursor* curCur);
+
+void pgDown(cd* startCd, cursor* curCur, cd* endCd, int* lines);
 
 #endif
