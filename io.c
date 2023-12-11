@@ -22,19 +22,18 @@
 
 void readf(char* path, chunk* curChunk, int* lines) {
 	FILE* fp = fopen(path, "rt");
-
 	chunk* tmpChunk = curChunk;
-	char ch = fgetc(fp);
-	int c_lines = 1;
+
+	FILE* c_fp = fopen(tmpChunk->path, "wt");
 
 	int now = 1;
 	fseek(fp, 0, SEEK_END);
 	int end = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-	FILE* c_fp = fopen(tmpChunk->path, "wt");
-
+	//최대 1kb, 1줄씩 읽어온다
 	char buffer[1024] = { 0 };
+	int c_lines = 1;
 
 	while (fgets(buffer, 1024, fp) != NULL) {
 		now = ftell(fp);
@@ -71,67 +70,73 @@ void readf(char* path, chunk* curChunk, int* lines) {
 }
 
 void writef(char* path, chunk* chunk_list, int lines) {
-	chunk* tmpChunk = chunk_list;
-	char buffer[1024] = { 0 };
-
-	int now = 0;
-
 	FILE* fp = fopen(path, "wt");
+	chunk* tmpChunk = chunk_list;
 
-	gotoXY(99, 24);
+	char buffer[1024] = { 0 };
+	int readChars;
 
 	while (tmpChunk != NULL) {
 		FILE* c_fp = fopen(tmpChunk->path, "rt");
 
-		int readChars = fread(buffer, sizeof(char), 1024, c_fp);
+		readChars = fread(buffer, sizeof(char), 1024, c_fp);
 
 		while (readChars > 0) {
-
 			fwrite(buffer, 1, readChars, fp);
-
 			readChars = fread(buffer, sizeof(char), 1024, c_fp);
 		}
 
 		fclose(c_fp);
-
 		tmpChunk = tmpChunk->next;
 
-		fprintf(stdout, "\rSaving... ", now, lines);
+		fprintf(stdout, "\rSaving... ");
 	}
 
 	fclose(fp);
 }
 
 void keyInput(char* path, int srCol, int srRow, int* lines) {
+	char input = 1;
 	int saved = path == NULL ? 0 : 1; // 입력된 사항 저장 여부 확인. 0: 저장되지 않음 1: 저장됨
 
-	char input = 0;
+	//임시 디렉토리 생성
+	if (mkdir("Chunks") != NULL) {
+		printf("ERROR: Chunks DIRECTORY IS ALREDY EXIST");
+		input = 0;
+	}
 
 	//청크 리스트와 커서 생성
 	chunk* chunk_list = getChunk();
 	cursor* curCur = get_cursor(chunk_list);
-	cd startCd = { 0,0 }, endCd = { 99, 22 };
 
-	init_UI(srCol, srRow);
-
+	//입력된 경로가 존재한다면 파일 읽어오기
 	if (path != NULL) readf(path, chunk_list, lines);
 
+	//첫번째 청크와 두번째 청크 활성화
 	chunkOn(chunk_list);
-	if (chunk_list->next != NULL){
+	if (chunk_list->next != NULL) {
 		chunkOn(chunk_list->next);
 	}
-	
+
+	//편집영역 설정 초기는 0,0에서 시작
+	cd startCd = { 0,0 }, endCd = { srCol - 1, srRow - 1 };
+
+	//초기 화면 출력
+	init_UI(srCol, srRow);
+
 	if (path != NULL) {
 		print_UI(&startCd, curCur, &endCd, srCol, srRow, path, *lines);
 	}
 
-	do {
+
+
+	while (input != 0) {
 		input = _getch();
 
 		if (input == CTRL_Q) {
 			if (saved == 0) {
 				gotoXY(srCol - 1, srRow - 1);
-				fprintf(stdout, "\r FILE DOESN'T SAVED   EXIT = CTRL_Q | CANCEL = ANY KEY", path);
+				fprintf(stdout, "\r FILE DOESN'T SAVED   EXIT = CTRL_Q | CANCEL = ANY KEY");
 
 				input = _getch();
 
@@ -141,17 +146,15 @@ void keyInput(char* path, int srCol, int srRow, int* lines) {
 			else input = 0;
 		}
 		else if (input == CTRL_S) {
+			gotoXY(srCol - 1, srRow - 1);
 			if (path == NULL) {
 
 				path = (char*)malloc(sizeof(char) * 100);
-
 				path[0] = '*';	path[1] = '\0';
 
 				int pathIdx = 0;
-
+				
 				while (1) {
-
-					gotoXY(srCol - 1, srRow - 1);
 					fprintf(stdout, "\r file name : %s  SAVE = ENTER | CANCEL = ESC", path);
 					gotoXY(12 + pathIdx, srRow - 1);
 
@@ -182,8 +185,8 @@ void keyInput(char* path, int srCol, int srRow, int* lines) {
 					}
 				}
 			}
-
-			if (saved == 0 && path != NULL) {
+			else if (saved == 0) {
+				//활성화 된 청크를 한번 비활성화 시켜 청크 변경사항을 저장한 뒤 원본에 덮어 씌우기 진행
 				if (curCur->curChunk->prev != NULL) chunkOff(curCur->curChunk->prev);
 				chunkOff(curCur->curChunk);
 				if (curCur->curChunk->next != NULL) chunkOff(curCur->curChunk->next);
@@ -193,9 +196,9 @@ void keyInput(char* path, int srCol, int srRow, int* lines) {
 				if (curCur->curChunk->prev != NULL) chunkOn(curCur->curChunk->prev);
 				chunkOn(curCur->curChunk);
 				if (curCur->curChunk->next != NULL) chunkOn(curCur->curChunk->next);
+
+				saved = 1;
 			}
-			
-			saved = 1;
 		}
 		else if (input == BACKSPACE) {
 			bsWord(curCur, lines);
@@ -244,15 +247,22 @@ void keyInput(char* path, int srCol, int srRow, int* lines) {
 		check_cursor(&startCd, curCur, &endCd);
 
 		print_UI(&startCd, curCur, &endCd, srCol, srRow, path, *lines);
-	} while (input != 0);
+	}
 	
+
+
 	if (curCur->curChunk->prev != NULL) chunkOff(curCur->curChunk->prev);
 	chunkOff(curCur->curChunk);
 	if (curCur->curChunk->next != NULL) chunkOff(curCur->curChunk->next);
 	
-	if (path != NULL)free(path);
+	if (path != NULL) free(path);
+	gotoXY(srCol - 1, srRow - 1);
+	fprintf(stdout, "\rREMOVE CHUNK_FILE WAIT..");
 	
 	free_chunk(&chunk_list);
+	rmdir("Chunks");
+	
+	fprintf(stdout, "\rEND");
 }
 
 /*
