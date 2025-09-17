@@ -62,7 +62,7 @@ viteTest_version2/
 ### MinGW / GCC
 ```bash
 gcc -O2 -std=c11 main.c io.c ui_windows.c wordlist.c -o viteTest.exe
-.iteTest.exe
+.ViteTest.exe
 ```
 
 ---
