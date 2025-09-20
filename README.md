@@ -36,6 +36,10 @@ version1에서 큰 데이터를 읽으면 프로그램이 멈추는 문제를 �
 - Windows 콘솔 UI (`ui_windows.c`)
 - 샘플 테스트 데이터 제공 (`test/`)
 
+<img width="732" height="1114" alt="image" src="https://github.com/user-attachments/assets/bcb637d2-bd71-4538-8da7-ebf801969ccf" />
+<img width="1164" height="597" alt="image" src="https://github.com/user-attachments/assets/5887e9a1-f262-4a5e-aec2-fb4f1d6da4f1" />
+<img width="1090" height="558" alt="image" src="https://github.com/user-attachments/assets/4bf5a395-a56a-472a-a219-2df14f80b4c2" />
+
 ---
 
 ## 📁 프로젝트 구조
